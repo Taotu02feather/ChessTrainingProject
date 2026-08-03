@@ -283,25 +283,26 @@ class ChessBoardWidget(QWidget):
             x = self.margin + screen_col * self.square_size
             y = self.margin + screen_row * self.square_size
 
-            # 棋子颜色
-            if piece.color == chess.WHITE:
-                painter.setPen(QPen(QColor(255, 255, 255)))
-                # 绘制阴影（使白子可见）
-                shadow_color = QColor(80, 80, 80, 100)
-                painter.setPen(shadow_color)
-                painter.drawText(
-                    x + 2, y + self.square_size - 5,
-                    self.square_size, self.square_size,
-                    Qt.AlignCenter, unicode_char
-                )
-                painter.setPen(QPen(QColor(245, 245, 245)))
-            else:
-                painter.setPen(QPen(QColor(40, 40, 40)))
+            # 设置棋子绘制区域
+            text_rect = QRect(x, y, self.square_size, self.square_size)
 
-            painter.drawText(
-                x, y, self.square_size, self.square_size,
-                Qt.AlignCenter, unicode_char
-            )
+            # 棋子颜色和阴影
+            if piece.color == chess.WHITE:
+                # 先绘制阴影（偏移 1 像素，让白子在浅色格上也可见）
+                painter.setPen(QPen(QColor(60, 60, 60, 80)))
+                shadow_rect = QRect(x + 1, y + 1, self.square_size, self.square_size)
+                painter.drawText(shadow_rect, Qt.AlignCenter, unicode_char)
+                # 再绘制白色棋子本体
+                painter.setPen(QPen(QColor(250, 250, 250)))
+            else:
+                # 黑子同样加阴影
+                painter.setPen(QPen(QColor(20, 20, 20, 80)))
+                shadow_rect = QRect(x + 1, y + 1, self.square_size, self.square_size)
+                painter.drawText(shadow_rect, Qt.AlignCenter, unicode_char)
+                # 黑子本体
+                painter.setPen(QPen(QColor(30, 30, 30)))
+
+            painter.drawText(text_rect, Qt.AlignCenter, unicode_char)
 
     def _draw_highlights(self, painter: QPainter):
         """绘制选中格高亮和合法走法指示。"""
