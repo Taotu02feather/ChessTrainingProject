@@ -1,0 +1,176 @@
+# ChessMate 更新日志 (CHANGELOG)
+
+本文档记录 ChessMate 国际象棋 AI 系统的所有重要版本更新。
+
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
+版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+---
+
+## [v0.1.0] - 2026-08-03
+
+### 🎉 初始版本发布
+
+首次公开发布 ChessMate，包含完整的三大核心模块和辅助工具。
+
+### ✨ 新增功能
+
+#### 训练模块 (`chessmate/training/`)
+- **神经网络** (`neural_net.py`)
+  - AlphaZero 风格残差卷积神经网络（ChessNet）
+  - 双头架构：策略头（走子概率）+ 价值头（局面评估）
+  - ResBlock 残差块，支持可配置的层数和通道数
+  - BoardEncoder 棋盘状态编码器（119 特征平面）
+  - 走法 ↔ 动作空间索引的双向映射（move_to_index / index_to_move）
+  - ChessLoss 组合损失函数（交叉熵 + MSE）
+
+- **MCTS 搜索** (`mcts.py`)
+  - 完整四阶段实现：Selection → Expansion → Evaluation → Backpropagation
+  - PUCT 公式节点选择（含可配置的 c_puct 常数）
+  - Dirichlet 噪声注入（根节点探索增强）
+  - 温度控制采样（支持训练/对战两种模式）
+  - MatchMCTS 对战模式变体（低温度 + 无噪声）
+
+- **自对弈引擎** (`self_play.py`)
+  - AI 自我对弈生成训练数据
+  - 温度切换策略（前 15 步探索，后续利用）
+  - 自动认输机制（估值低于阈值）
+  - 最大步数保护
+  - 对局统计（白胜/黑胜/和棋比例）
+  - 批量自对弈（progress bar 显示）
+
+- **经验回放** (`replay_buffer.py`)
+  - 循环缓冲区（deque，固定容量）
+  - 随机批量采样
+  - 序列化/反序列化（pickle 支持）
+  - GameCollector 对局经验收集器
+  - 统计信息追踪
+
+- **训练器** (`trainer.py`)
+  - 完整训练循环编排（self-play → train → checkpoint）
+  - AdamW 优化器 + 余弦退火学习率调度
+  - 梯度裁剪（max_norm=1.0）
+  - TensorBoard 日志支持
+  - 检查点保存/恢复（含优化器和调度器状态）
+  - 模型评估（vs 随机走法）
+  - 最佳模型自动保存
+  - quick_train() 便捷训练函数
+
+#### 视觉识别模块 (`chessmate/vision/`)
+- **棋盘检测** (`board_detector.py`)
+  - 手动区域配置（指定棋盘左上角 + 格子大小）
+  - 自动检测（Canny 边缘 + 轮廓四边形近似）
+  - 角点排序（左上→右上→右下→左下）
+  - 方格坐标映射（square → 屏幕像素）
+  - 子图像裁剪提取
+  - ChessboardRegion 数据类
+
+- **棋子识别** (`piece_classifier.py`)
+  - 颜色分析法（中心区域 vs 边缘比较）
+  - 模板匹配法（可选的模板图片对比）
+  - FEN 字符串输出
+  - FEN 验证（python-chess 校验）
+  - FEN ↔ 网格双向转换
+  - VisionPipeline 完整流水线
+
+#### 网页交互模块 (`chessmate/web/`)
+- **网页对弈器** (`web_player.py`)
+  - 截图 + 识别 + AI 搜索 + 鼠标走子完整流水线
+  - 两种走子方式：点击（click-click）+ 拖拽（drag）
+  - 执白/执黑模式（等待对手 vs 先行）
+  - 全自动双模式（测试用）
+  - 交互式棋盘位置校准工具（calibrate_position）
+  - 坐标映射（python-chess square → 屏幕像素）
+  - 延时控制（避免被检测）
+
+#### GUI 模块 (`chessmate/gui/`)
+- **PyQt5 对弈窗口** (`chess_window.py`)
+  - 标准 8×8 棋盘绘制（QPainter）
+  - Unicode 国际象棋符号渲染（♔♕♖♗♘♙ / ♚♛♜♝♞♟）
+  - 鼠标交互走子（选中高亮 + 合法走法指示）
+  - 兵自动升变为后（简化处理）
+  - AI 后台线程搜索（QThread，不冻结 UI）
+  - 最短思考时间显示
+  - 走子历史（标准代数记谱法，SAN）
+  - 棋盘翻转（黑方视角）
+  - 玩家执子颜色选择
+  - 对局结束处理（将杀/逼和/子力不足）
+  - 状态栏实时提示
+
+#### 系统基础
+- **主入口** (`main.py`)
+  - 交互式菜单（6 种模式）
+  - 命令行参数解析（argparse）
+  - 训练规模选择（小/中/自定义）
+  - ASCII 艺术标题
+  - 全模块诊断测试
+
+- **配置系统** (`chessmate/config.py`)
+  - ChessConfig 数据类（50+ 可调参数）
+  - 预定义配置方案（小/中/完整规模）
+  - 日志系统自动配置
+  - 目录自动创建
+  - 字典导入/导出
+
+- **环境检测** (`check_env.py`)
+  - Python 版本检查
+  - Conda 环境检测
+  - 依赖包逐一验证（含版本号）
+  - CUDA/GPU 可用性检测
+  - 缺失包安装命令提示
+  - 分级报告（必需/可选）
+
+- **依赖管理** (`requirements.txt`)
+  - 分类注释（核心/可选/可视化）
+  - 最低版本约束
+
+### 📚 文档
+- 完整中文 README（安装、使用、配置、FAQ）
+- 所有源码含中英文注释
+- 每个类和函数均有 docstring
+- 每个模块含测试代码（`if __name__ == "__main__"`）
+
+### 🔧 技术细节
+- **技术栈**：Python 3.10、PyTorch 2.x、python-chess、PyQt5、OpenCV、pyautogui
+- **神经网络**：残差 CNN、Batch Normalization、双头输出（策略 + 价值）
+- **优化器**：AdamW with weight decay、余弦退火学习率调度
+- **数据流**：自对弈 → GameCollector → ReplayBuffer → 随机采样 → Trainer
+- **并行**：GUI 使用 QThread 后台搜索，训练支持 GPU（CUDA）
+- **编码规范**：PEP8 风格、类型提示、dataclass、slots 优化
+
+### ⚠️ 已知限制
+- 棋盘编码器使用简化特征平面（非完整 AlphaZero 119 平面实现）
+- 视觉识别的颜色分析法只能区分空格/棋子/颜色，无法细分棋子类型
+- 自对弈为单线程，不支持并行
+- GUI 不支持悔棋和提示功能
+- 网页对弈仅支持点击走子，拖拽模式尚未完全测试
+- 棋子升变自动选后，不支持用户选择
+
+### 🔜 计划中（v0.2.0）
+- 完整 AlphaZero 119 平面特征编码（含历史状态）
+- 并行自对弈（多进程）
+- CNN 棋子分类器（替代颜色分析）
+- GUI 悔棋和走子提示
+- PGN 导入/导出
+- 模型 Elo 评估对战
+- 拖拽走子在网页对战中的完整实现
+
+---
+
+## 版本规范
+
+版本号格式：`主版本号.次版本号.修订号`
+
+- **主版本号**：不兼容的 API 修改
+- **次版本号**：向下兼容的功能新增
+- **修订号**：向下兼容的问题修复
+
+---
+
+## 贡献者
+
+- Taotu - 初始开发和维护
+
+---
+
+*本日志最后更新于 2026-08-03*
