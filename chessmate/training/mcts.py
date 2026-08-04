@@ -131,46 +131,56 @@ class MCTS:
         root.prior_probs = policy_probs
         self._add_dirichlet_noise(root)
 
+        # 使用 push/pop 替代 board.copy() 来还原棋盘（避免 O(N) 复制）
+        sim_board = board.copy(stack=False)  # 浅拷贝共享底层，push/pop 仅改状态
+        # 注意：python-chess 的 Board.copy(stack=False) 更快但同一 Board 上 push/pop 已经
+        # 很快。这里用一个共享 board，通过 push/pop 来模拟每条路径。
         for _ in range(self.num_simulations):
             node = root
             search_path = [node]
-            current_board = board.copy()
+            # 记录本模拟 push 的步数，用于还原
+            moves_pushed = 0
 
             while not node.is_leaf() and node.is_expanded:
                 best_child_idx = self._select_child(node)
                 node = node.children[best_child_idx]
                 search_path.append(node)
-                move = index_to_move(best_child_idx, current_board)
+                move = index_to_move(best_child_idx, sim_board)
                 if move:
-                    current_board.push(move)
+                    sim_board.push(move)
+                    moves_pushed += 1
 
             value = 0.0
-            if not current_board.is_game_over():
-                node.legal_moves_indices = self._get_legal_moves_indices(current_board)
+            if not sim_board.is_game_over():
+                node.legal_moves_indices = self._get_legal_moves_indices(sim_board)
 
                 if node.legal_moves_indices:
-                    node.state = self.encoder.encode(current_board).unsqueeze(0).to(self.device)
+                    node.state = self.encoder.encode(sim_board).unsqueeze(0).to(self.device)
                     with torch.no_grad():
                         policy_logits, nn_value = self.model(node.state)
                         node.prior_probs = F.softmax(policy_logits.squeeze(0), dim=0).cpu().numpy()
                         value = -nn_value.item()
                     node.is_expanded = True
                 else:
-                    result = current_board.result()
+                    result = sim_board.result()
                     if result == "1-0":
-                        value = 1.0 if current_board.turn == chess.WHITE else -1.0
+                        value = 1.0 if sim_board.turn == chess.WHITE else -1.0
                     elif result == "0-1":
-                        value = -1.0 if current_board.turn == chess.WHITE else 1.0
+                        value = -1.0 if sim_board.turn == chess.WHITE else 1.0
                     else:
                         value = 0.0
             else:
-                result = current_board.result()
+                result = sim_board.result()
                 if result == "1-0":
-                    value = 1.0 if current_board.turn == chess.BLACK else -1.0
+                    value = 1.0 if sim_board.turn == chess.BLACK else -1.0
                 elif result == "0-1":
-                    value = -1.0 if current_board.turn == chess.BLACK else 1.0
+                    value = -1.0 if sim_board.turn == chess.BLACK else 1.0
                 else:
                     value = 0.0
+
+            # 还原棋盘到根状态（pop 回 pushed 的步数）
+            for _ in range(moves_pushed):
+                sim_board.pop()
 
             for node_in_path in reversed(search_path):
                 node_in_path.visit_count += 1

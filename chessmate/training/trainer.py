@@ -150,9 +150,16 @@ class Trainer:
         self.logger.info(f"回放缓冲区容量: {self.config.replay_buffer_capacity}")
         self.logger.info("=" * 60)
 
+        # 检查是否有可恢复的训练检查点
+        from chessmate.model_manager import check_and_restore_training
+        restored = check_and_restore_training(self)
+        if restored:
+            self.logger.info("已从检查点恢复，将继续训练...")
+
         start_time = time.time()
 
-        for iteration in range(self.config.max_training_iterations):
+        # 如果已恢复，从当前迭代继续；否则从 0 开始
+        for iteration in range(self.current_iteration, self.config.max_training_iterations):
             self.current_iteration = iteration + 1
             iter_start = time.time()
 

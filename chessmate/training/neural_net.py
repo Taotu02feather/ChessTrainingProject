@@ -31,6 +31,7 @@ from typing import Tuple, List
 # 允许直接运行此文件时也能找到 chessmate 包
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import chess
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -153,9 +154,28 @@ class BoardEncoder:
         self.history_length = history_length
         self.num_planes = 119  # AlphaZero 标准
 
+    # 棋子类型到平面索引映射（类常量，避免每步重新构建）
+    _PIECE_PLANE_IDX = {
+        (chess.PAWN, chess.WHITE): 0, (chess.KNIGHT, chess.WHITE): 1,
+        (chess.BISHOP, chess.WHITE): 2, (chess.ROOK, chess.WHITE): 3,
+        (chess.QUEEN, chess.WHITE): 4, (chess.KING, chess.WHITE): 5,
+        (chess.PAWN, chess.BLACK): 6, (chess.KNIGHT, chess.BLACK): 7,
+        (chess.BISHOP, chess.BLACK): 8, (chess.ROOK, chess.BLACK): 9,
+        (chess.QUEEN, chess.BLACK): 10, (chess.KING, chess.BLACK): 11,
+    }
+    # 易位权利平面偏移（在 planes 中的起止索引）
+    _CASTLING_OFFSET = 12 + 1  # 12 棋子 + 1 颜色平面
+    # 无进展平面索引
+    _HALFMOVE_OFFSET = 12 + 1 + 4  # +4 易位
+    # 常数平面索引
+    _CONSTANT_OFFSET = 12 + 1 + 4 + 1
+
     def encode(self, board) -> torch.Tensor:
         """
-        将 python-chess Board 对象编码为特征张量。
+        将 python-chess Board 对象编码为特征张量（向量化优化版）。
+
+        预分配 (num_planes, 8, 8) 数组后一次性填充，避免重复 np.zeros 分配
+        和 Python 循环嵌套。使用 board.piece_map() 一次性遍历所有棋子。
 
         Args:
             board: python-chess Board 对象。
@@ -165,55 +185,38 @@ class BoardEncoder:
         """
         import numpy as np, chess
 
-        # 使用简化但完整的编码方案
-        planes = []
+        # 预分配完整平面数组（一次性分配，避免重复 np.zeros）
+        planes = np.zeros((self.num_planes, 8, 8), dtype=np.float32)
 
-        # --- 1. 棋子位置平面 (12 个) ---
-        # 为每种棋子类型创建一个 8x8 的二进制平面
-        for piece_type in [chess.PAWN, chess.KNIGHT, chess.BISHOP,
-                           chess.ROOK, chess.QUEEN, chess.KING]:
-            for color in [chess.WHITE, chess.BLACK]:
-                plane = np.zeros((8, 8), dtype=np.float32)
-                for square in board.pieces(piece_type, color):
-                    row = 7 - (square // 8)  # 将 square 索引转为行 (0=top/黑方)
-                    col = square % 8
-                    plane[row, col] = 1.0
-                planes.append(plane)
+        # --- 1. 棋子位置 (12 个平面) ---
+        # 使用 board.piece_map() 一次性获取所有棋子及其位置
+        for square, piece in board.piece_map().items():
+            row = 7 - (square // 8)  # square 转网格行（0=棋盘顶部）
+            col = square % 8
+            plane_idx = self._PIECE_PLANE_IDX.get(
+                (piece.piece_type, piece.color), -1
+            )
+            if plane_idx >= 0:
+                planes[plane_idx, row, col] = 1.0
 
-        # --- 2. 当前玩家颜色平面 (1 个) ---
-        color_plane = np.full((8, 8), 1.0 if board.turn == chess.WHITE else 0.0, dtype=np.float32)
-        planes.append(color_plane)
+        # --- 2. 当前玩家颜色 (1 个平面, 索引 12) ---
+        planes[12] = 1.0 if board.turn == chess.WHITE else 0.0
 
-        # --- 3. 易位权利平面 (4 个) ---
-        # 白王翼, 白后翼, 黑王翼, 黑后翼
-        castling_rights = [
-            board.has_kingside_castling_rights(chess.WHITE),
-            board.has_queenside_castling_rights(chess.WHITE),
-            board.has_kingside_castling_rights(chess.BLACK),
-            board.has_queenside_castling_rights(chess.BLACK),
-        ]
-        for has_right in castling_rights:
-            plane = np.full((8, 8), 1.0 if has_right else 0.0, dtype=np.float32)
-            planes.append(plane)
+        # --- 3. 易位权利 (4 个平面, 索引 13~16) ---
+        offset = self._CASTLING_OFFSET
+        planes[offset + 0] = 1.0 if board.has_kingside_castling_rights(chess.WHITE) else 0.0
+        planes[offset + 1] = 1.0 if board.has_queenside_castling_rights(chess.WHITE) else 0.0
+        planes[offset + 2] = 1.0 if board.has_kingside_castling_rights(chess.BLACK) else 0.0
+        planes[offset + 3] = 1.0 if board.has_queenside_castling_rights(chess.BLACK) else 0.0
 
-        # --- 4. 无进展计数器 (1 个) ---
-        # 归一化到 [0, 1]，用于表示 50 步规则
-        halfmove_plane = np.full((8, 8), board.halfmove_clock / 50.0, dtype=np.float32)
-        planes.append(halfmove_plane)
+        # --- 4. 无进展计数器 (1 个平面, 索引 17) ---
+        planes[self._HALFMOVE_OFFSET] = board.halfmove_clock / 50.0
 
-        # --- 5. 常数平面，帮助网络感知全局 (1 个) ---
-        constant_plane = np.ones((8, 8), dtype=np.float32)
-        planes.append(constant_plane)
+        # --- 5. 常数平面 (1 个平面, 索引 18) ---
+        planes[self._CONSTANT_OFFSET] = 1.0
 
-        # 此时应有约 19 个平面，填充到 119 个（用零填充或重复历史）
-        # 为简化，将剩余平面填充为零以匹配网络输入
-        # 在实际完整实现中，会包含历史状态编码
-        while len(planes) < self.num_planes:
-            planes.append(np.zeros((8, 8), dtype=np.float32))
-
-        # 堆叠并转为张量
-        encoded = np.stack(planes[:self.num_planes], axis=0)  # (num_planes, 8, 8)
-        return torch.from_numpy(encoded).float()
+        # 剩余平面保持为 0（预分配时已为零）
+        return torch.from_numpy(planes).float()
 
     def encode_batch(self, boards: list) -> torch.Tensor:
         """

@@ -137,6 +137,7 @@ def run_gui():
     print("\n正在启动 ChessMate GUI...")
     try:
         from chessmate.config import ChessConfig
+        from chessmate.model_manager import select_model
         from chessmate.gui.chess_window import launch_gui
 
         config = ChessConfig()
@@ -146,10 +147,14 @@ def run_gui():
         config.gui_player_color = (choice != 'n')
 
         print(f"玩家执{'白' if config.gui_player_color else '黑'}方")
+
+        # 选择模型
+        model = select_model(config)
+
         print("\n启动 GUI 窗口...")
         print("提示：关闭窗口即可退出。")
 
-        launch_gui(config=config)
+        launch_gui(model=model, config=config)
 
     except ImportError as e:
         print(f"错误：无法导入 PyQt5。请确保已安装：pip install PyQt5")
@@ -171,7 +176,7 @@ def run_web():
         return
 
     from chessmate.config import ChessConfig
-    from chessmate.training.neural_net import ChessNet
+    from chessmate.model_manager import select_model
     from chessmate.web.web_player import WebPlayer
 
     config = ChessConfig()
@@ -183,10 +188,11 @@ def run_web():
 
     need_calibrate = input("\n需要重新校准棋盘位置? [y/N]: ").strip().lower()
     if need_calibrate == 'y':
-        # 创建临时 WebPlayer 进行校准
-        model = ChessNet(config)
-        model.eval()
-        player = WebPlayer(model, config)
+        # 创建临时 WebPlayer 进行校准（校准不需要训练模型）
+        from chessmate.training.neural_net import ChessNet
+        temp_model = ChessNet(config)
+        temp_model.eval()
+        player = WebPlayer(temp_model, config)
         player.calibrate_position()
 
         # 更新配置
@@ -201,19 +207,8 @@ def run_web():
 
     role_choice = input("请选择 [1-3]: ").strip() or "1"
 
-    # 创建模型（尝试加载已训练的模型）
-    model = ChessNet(config)
-    model_path = os.path.join(config.model_dir, config.best_model_name)
-    if os.path.exists(model_path):
-        try:
-            model = ChessNet.load(model_path, config=config, device=config.device)
-            print(f"已加载训练模型: {model_path}")
-        except Exception as e:
-            print(f"无法加载模型 ({e})，使用未训练模型")
-    else:
-        print("未找到已训练模型，使用未训练模型（AI 走法随机）")
-
-    model.eval()
+    # 使用统一模型管理器选择模型
+    model = select_model(config)
     player = WebPlayer(model, config)
 
     if role_choice == "1":

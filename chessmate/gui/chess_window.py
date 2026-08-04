@@ -743,8 +743,8 @@ def launch_gui(model=None, config=None):
         config = ChessConfig()
 
     if model is None:
-        model = ChessNet(config)
-        model.eval()
+        from chessmate.model_manager import select_model
+        model = select_model(config)
 
     # 高 DPI 支持（Windows）
     if hasattr(Qt, 'AA_EnableHighDpiScaling'):

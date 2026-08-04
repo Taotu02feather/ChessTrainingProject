@@ -15,3 +15,8 @@ __license__ = "MIT"
 
 # 便捷导入
 from chessmate.config import ChessConfig
+from chessmate.model_manager import (
+    list_available_models,
+    select_model,
+    check_and_restore_training,
+)
