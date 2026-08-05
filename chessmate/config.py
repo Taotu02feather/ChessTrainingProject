@@ -316,8 +316,8 @@ class ChessConfig:
                 # 跳过不可序列化的字段
                 if key in ("project_root",):
                     continue
-                if isinstance(value, type(logging.INFO)):
-                    result[key] = logging.getLevelName(value)
+                if isinstance(value, int) and key == "log_level":
+                    result[key] = value  # 保持为整数，不转换为字符串
                 elif callable(value):
                     continue
                 else:

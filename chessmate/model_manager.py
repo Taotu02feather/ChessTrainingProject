@@ -65,6 +65,27 @@ def list_available_models(model_dir: str) -> List[Dict[str, str]]:
     return models
 
 
+def _sanitize_config_value(value):
+    """
+    修复被错误序列化的配置值。
+    
+    旧版 to_dict() 将整数错误地通过 logging.getLevelName() 转换，
+    导致如 board_size=8 被保存为 "Level 8"。
+    此函数将这类值还原为整数。
+    """
+    if isinstance(value, str) and value.startswith("Level "):
+        try:
+            return int(value.split(" ", 1)[1])
+        except (ValueError, IndexError):
+            pass
+    # 处理 "Level True" / "Level False"
+    if isinstance(value, str) and value == "Level True":
+        return True
+    if isinstance(value, str) and value == "Level False":
+        return False
+    return value
+
+
 def is_checkpoint(filepath: str) -> bool:
     """
     判断模型文件是否为完整检查点（包含优化器状态）。
@@ -186,12 +207,12 @@ def _load_model_from_file(config, filepath: str) -> any:
             saved_config = checkpoint.get("config", {})
             iteration = checkpoint.get("iteration", "?")
 
-            # 用保存的配置更新当前 config
+            # 用保存的配置更新当前 config（同时修复被损毁的值）
             for k, v in saved_config.items():
                 if hasattr(config, k) and k not in (
                     "project_root", "model_dir", "log_dir",
                 ):
-                    setattr(config, k, v)
+                    setattr(config, k, _sanitize_config_value(v))
 
             model = ChessNet(config)
             model.load_state_dict(state_dict, strict=False)
