@@ -7,6 +7,42 @@
 
 ---
 
+## [v0.2.0] - 2026-08-10
+
+### 🧠 BoardEncoder 历史编码（重大修复）
+
+**问题**：v0.1.0 的 BoardEncoder 只填充了 119 个平面中的 19 个（84% 是零）。神经网络收到的输入绝大多数是垃圾数据，导致模型完全无法学习有意义的棋局评估。
+
+**修复**：重写 BoardEncoder 为 AlphaZero 标准的"局面历史序列"编码——19 个基础平面 × 7 个时间步 = 119 总平面。与旧检查点完全兼容。
+
+### ♟️ 对战 MCTS 优化
+
+**问题**：GUI 和网页对战使用训练模式的 `mcts_simulations=200`，导致每步搜索耗时 60-90 秒，界面卡死。
+
+**修复**：新增 `config.play_mcts_simulations = 40`，`MatchMCTS` 使用对战专用值，模型加载时显式 `model.to("cuda")` 确保 GPU。
+
+### 📊 训练配置增强
+
+mcts_simulations: 60→200 | num_self_play_games: 40→100 | mcts_c_puct: 1.0→1.5 | max_moves_per_game: 150→100 | replay_buffer_capacity: 100k→500k | replay_batch_size: 256→512 | learning_rate: 0.001→0.0005 | max_training_iterations: 50→200 | checkpoint_frequency: 5→2 | num_res_blocks: 12→15 | num_filters: 128→192
+
+### 🔧 统一模型管理器
+
+新建 `chessmate/model_manager.py`：`list_available_models()` 扫描模型目录、`select_model(config)` 交互式选择、`check_and_restore_training(trainer)` 自动恢复训练。
+
+### 🐛 Bug 修复
+
+- **config 序列化破坏整数**：`to_dict()` 中 `isinstance(value, type(logging.INFO))` 错误匹配所有整数，导致 `board_size=8` 被保存为 `"Level 8"`。已修复并添加 `_sanitize_config_value()` 兼容现有检查点。
+- **"not all arguments converted during string formatting"**：上述 bug 导致加载模型时报错，已修复。
+- **GUI 棋子位置偏移**：`_draw_pieces()` 中阴影偏移量错误，已重写绘制逻辑。
+- **直接运行子模块报错 `ModuleNotFoundError`**：所有子模块顶部添加 `sys.path.insert` 自动修正项目根目录。
+
+### 📝 文档
+
+- 更新 README.md：完整使用说明、参数表格、FAQ
+- 更新 CHANGELOG.md（本文档）
+
+---
+
 ## [v0.1.0] - 2026-08-03
 
 ### 🎉 初始版本发布

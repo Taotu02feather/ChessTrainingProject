@@ -108,6 +108,16 @@ class MCTS:
         self.device = config.device
         self.model.to(self.device)
 
+    def sync_encoder_history(self, source_encoder):
+        """
+        从外部编码器同步历史栈。在每次 MCTS 搜索前调用，
+        保证 MCTS 内部的编码器能看到与自对弈相同的历史。
+        """
+        from collections import deque
+        self.encoder.history_stack = deque(
+            source_encoder.history_stack, maxlen=source_encoder.history_length
+        )
+
     def search(self, board, return_probs: bool = False) -> Tuple[any, float]:
         import chess
 
@@ -266,13 +276,15 @@ class MCTS:
 
 
 class MatchMCTS(MCTS):
-    """用于实际对战的 MCTS 变体。"""
+    """用于实际对战的 MCTS 变体。使用专用的 play_mcts_simulations 以保证实时响应。"""
 
     def __init__(self, model, encoder, config):
         super().__init__(model, encoder, config)
         self.temperature = 0.1
         self.dirichlet_epsilon = 0.0
-        self.num_simulations = max(100, self.num_simulations)
+        # 对战模式使用专用参数，远低于训练值以保证 GUI 不卡死
+        play_sims = getattr(config, 'play_mcts_simulations', 40)
+        self.num_simulations = min(play_sims, self.num_simulations)
 
 
 if __name__ == "__main__":

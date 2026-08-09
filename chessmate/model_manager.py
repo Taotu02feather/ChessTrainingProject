@@ -218,13 +218,23 @@ def _load_model_from_file(config, filepath: str) -> any:
             model.load_state_dict(state_dict, strict=False)
             model.eval()
 
+            # 显式移动到目标设备（确保 GPU 被使用）
+            target_device = config.device
+            if target_device == "cuda" and torch.cuda.is_available():
+                model.to("cuda")
+            else:
+                model.to("cpu")
+
             logger.info(f"模型已加载: {os.path.basename(filepath)} (第 {iteration} 轮训练)")
-            print(f"  ✅ 模型已加载（第 {iteration} 轮训练）")
+            print(f"  ✅ 模型已加载（第 {iteration} 轮训练，设备: {target_device}）")
         else:
             # 纯模型权重文件
             model = ChessNet.load(filepath, config=config, device="cpu")
+            target_device = config.device
+            if target_device == "cuda" and torch.cuda.is_available():
+                model.to("cuda")
             logger.info(f"模型已加载: {os.path.basename(filepath)}")
-            print(f"  ✅ 模型已加载（纯权重文件）")
+            print(f"  ✅ 模型已加载（纯权重文件，设备: {target_device}）")
 
         return model
 

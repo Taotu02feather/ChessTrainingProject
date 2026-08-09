@@ -105,6 +105,10 @@ class SelfPlay:
         board = chess.Board()
         collector = GameCollector()
 
+        # 初始化历史编码器
+        self.encoder.clear_history()
+        self.encoder.push_history(board)
+
         move_count = 0
         max_moves = self.config.max_moves_per_game
 
@@ -119,6 +123,9 @@ class SelfPlay:
             else:
                 self.mcts.temperature = 0.1  # 利用
 
+            # 同步编码器的历史状态到 MCTS
+            self.mcts.sync_encoder_history(self.encoder)
+
             # MCTS 搜索，获取走法概率分布和局面估值
             move_probs, root_value = self.mcts.search(
                 board, return_probs=True
@@ -128,7 +135,7 @@ class SelfPlay:
                 # 搜索失败（终局或无合法走法）
                 break
 
-            # 编码当前局面（用于保存经验）
+            # 编码当前局面（用于保存经验）-- 已经包含历史上下文
             encoded_state = self.encoder.encode(board)
 
             # 将走法概率分布转换为动作空间大小的向量
