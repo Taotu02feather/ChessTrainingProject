@@ -161,6 +161,8 @@ class SelfPlay:
 
             # 执行走法
             board.push(selected_move)
+            # 记录历史局面到编码器（关键：让网络看到棋局动态变化）
+            self.encoder.push_history(board)
             move_count += 1
 
             # 自动认输检查
