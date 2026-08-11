@@ -113,7 +113,14 @@ class SelfPlay:
         max_moves = self.config.max_moves_per_game
 
         # 温度切换步数（前 N 步用高温探索，之后用低温贪婪）
-        temperature_cutoff = 15  # 前 15 步使用温度采样
+        temperature_cutoff = 40  # 前 40 步使用温度采样，增加中局多样性
+
+        # 开局强制随机走子（白黑各1步），打破千局一面
+        for _ in range(2):
+            if board.legal_moves.count() > 0:
+                board.push(random.choice(list(board.legal_moves)))
+                self.encoder.push_history(board)
+                move_count += 1
 
         # 主循环
         while not board.is_game_over() and move_count < max_moves:

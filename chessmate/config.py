@@ -96,8 +96,8 @@ class ChessConfig:
     mcts_dirichlet_alpha: float = 0.3
     """Dirichlet 噪声的 alpha 参数，用于根节点的先验概率。"""
 
-    mcts_dirichlet_epsilon: float = 0.25
-    """Dirichlet 噪声的混合比例 epsilon。"""
+    mcts_dirichlet_epsilon: float = 0.50
+    """Dirichlet 噪声的混合比例 epsilon。0.5 增强探索覆盖面。"""
 
     play_mcts_simulations: int = 40
     """对战模式下的 MCTS 搜索模拟次数。远低于训练值以保证实时响应（40 次 ≈ 3-5 秒/步）。"""
@@ -126,8 +126,8 @@ class ChessConfig:
     # ------------------------------------------------------------------
     # 训练参数
     # ------------------------------------------------------------------
-    learning_rate: float = 0.0005
-    """初始学习率。降低学习率使训练更稳定。"""
+    learning_rate: float = 0.001
+    """初始学习率。提高 LR 加速早期收敛（余弦退火会自然降低）。"""
 
     weight_decay: float = 1e-4
     """权重衰减（L2 正则化）系数。"""

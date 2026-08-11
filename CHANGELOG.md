@@ -41,6 +41,29 @@ mcts_simulations: 60→200 | num_self_play_games: 40→100 | mcts_c_puct: 1.0→
 - 更新 README.md：完整使用说明、参数表格、FAQ
 - 更新 CHANGELOG.md（本文档）
 
+### 🚀 训练加速与多样性增强（2026-08-10 后续）
+
+**问题**：BoardEncoder 历史栈在 self_play 中未更新，导致 7 个时间步的历史始终为初始局面，119 平面编码形同虚设。同时和棋率 99.8%、每局仅 22 步。
+
+**修复（4 项改动）**：
+
+- **历史栈激活**（`self_play.py`）：每步 `board.push()` 后调用 `self.encoder.push_history(board)`，T=-1 到 T=-6 真正反映棋局动态变化
+- **开局随机化**（`self_play.py`）：白黑各随机走 1 步作为开局，打破"千局一面"
+- **探索延长**：`temperature_cutoff: 15→40`，`dirichlet_epsilon: 0.25→0.50`，MCTS 更积极尝试非常规走法
+- **学习率翻倍**：`learning_rate: 0.0005→0.001`，加速早期收敛
+
+**参数调整汇总**：
+
+| 参数 | 旧值 | 新值 | 说明 |
+|------|------|------|------|
+| temperature_cutoff | 15 | 40 | 探索延伸到中局 |
+| dirichlet_epsilon | 0.25 | 0.50 | MCTS 50% 噪声覆盖 |
+| learning_rate | 0.0005 | 0.001 | 学习率翻倍 |
+| resign_threshold | -0.95 | -0.99 | 减少误判认输 |
+| max_moves_per_game | 100 | 120 | 减少和棋截断 |
+| num_self_play_games | 100 | 20 | 每轮更快完成，频繁检查点 |
+| checkpoint_frequency | 2 | 1 | 每轮都保存 |
+
 ---
 
 ## [v0.1.0] - 2026-08-03
@@ -209,4 +232,4 @@ mcts_simulations: 60→200 | num_self_play_games: 40→100 | mcts_c_puct: 1.0→
 
 ---
 
-*本日志最后更新于 2026-08-03*
+*本日志最后更新于 2026-08-10*
