@@ -66,6 +66,38 @@ mcts_simulations: 60→200 | num_self_play_games: 40→100 | mcts_c_puct: 1.0→
 
 ---
 
+## [v0.3.0] - 2026-08-12
+
+### 🎓 监督学习预训练模块（重大新增）
+
+**背景**：从零开始的 AlphaZero 强化学习需要数百万局自对弈（DeepMind 用了 440 万局、5000 个 TPU），个人算力无法复现。实测从零训练 70 轮策略损失仍卡在 3.35（接近随机水平），模型纯随机走子。
+
+**方案**：采用 Leela Chess Zero 等开源项目的标准做法——先监督学习预训练，再强化学习微调。
+
+**新增**：`chessmate/training/pretrain.py` 的 `Pretrainer` 类
+
+- **数据流**：流式读取 PGN 棋谱，逐局提取 (局面, 人类走法, 对局结果) 三元组
+- **策略头训练**：交叉熵损失，让模型学会预测人类大师的走法
+- **价值头训练**：MSE 损失，预测对局结果（白胜 +1 / 黑胜 -1 / 和 0）
+- **历史编码**：复用 BoardEncoder 的 history_stack，每步同步历史状态
+- **支持**：单文件 / 目录 / glob 模式，`--max-games` 限制处理量
+
+**集成**：
+- `main.py` 新增 `pretrain` 命令，支持 `--pgn`、`--epochs`、`--max-games` 参数
+- 新增 `download_pgn.py` 脚本，自动下载大师棋谱（pgnmentor.com）
+
+**实测效果**：
+- 快速验证（200 局 1 epoch）：策略损失 8.7 → 5.9
+- 完整预训练（2 万局）：策略损失从 8.66 降至 3.9 以下，首次突破强化学习 70 轮未达到的水平
+
+**使用方式**：
+```bash
+python main.py pretrain --pgn data/pgn --epochs 3   # 监督预训练
+python main.py train                                  # 强化学习微调
+```
+
+---
+
 ## [v0.1.0] - 2026-08-03
 
 ### 🎉 初始版本发布
@@ -232,4 +264,4 @@ mcts_simulations: 60→200 | num_self_play_games: 40→100 | mcts_c_puct: 1.0→
 
 ---
 
-*本日志最后更新于 2026-08-10*
+*本日志最后更新于 2026-08-12*

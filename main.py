@@ -132,6 +132,46 @@ def run_train():
     print("\n训练完成！")
 
 
+def run_pretrain(args=None):
+    """启动监督学习预训练。"""
+    print("\n" + "=" * 60)
+    print("ChessMate 监督学习预训练模式")
+    print("=" * 60)
+
+    from chessmate.config import ChessConfig
+    from chessmate.training.pretrain import Pretrainer
+
+    config = ChessConfig()
+
+    # 获取 PGN 路径
+    pgn_path = None
+    epochs = 3
+    max_games = None
+
+    if args and args.pgn:
+        pgn_path = args.pgn
+        epochs = args.epochs if hasattr(args, 'epochs') else 3
+        max_games = args.max_games if hasattr(args, 'max_games') else None
+    else:
+        pgn_path = input("PGN 文件路径（或目录）: ").strip()
+        if not pgn_path:
+            print("未提供 PGN 路径。")
+            return
+        epochs_input = input("训练轮数 [默认 3]: ").strip()
+        epochs = int(epochs_input) if epochs_input else 3
+
+    print(f"\n预训练配置:")
+    print(f"  PGN 路径: {pgn_path}")
+    print(f"  训练轮数: {epochs}")
+    print(f"  设备: {config.device}")
+
+    trainer = Pretrainer(config)
+    trainer.train(pgn_path, epochs=epochs, max_games=max_games)
+
+    print("\n预训练完成！模型已保存到 models/best_model.pth")
+    print("现在可以运行 python main.py train 继续强化学习微调。")
+
+
 def run_gui():
     """启动本地对弈 GUI。"""
     print("\n正在启动 ChessMate GUI...")
@@ -380,7 +420,7 @@ def main():
     )
     parser.add_argument(
         'mode', nargs='?', default=None,
-        choices=['train', 'gui', 'web', 'check', 'calibrate', 'test'],
+        choices=['train', 'pretrain', 'gui', 'web', 'check', 'calibrate', 'test'],
         help='运行模式 (无参数时显示交互式菜单)'
     )
     parser.add_argument(
@@ -399,6 +439,18 @@ def main():
         '--cpu', action='store_true',
         help='强制使用 CPU（不使用 GPU）'
     )
+    parser.add_argument(
+        '--pgn', type=str, default=None,
+        help='监督预训练用的 PGN 棋谱文件路径'
+    )
+    parser.add_argument(
+        '--epochs', type=int, default=3,
+        help='监督预训练轮数（默认 3）'
+    )
+    parser.add_argument(
+        '--max-games', type=int, default=None,
+        help='监督预训练每个 PGN 文件最大处理对局数'
+    )
 
     args = parser.parse_args()
 
@@ -416,6 +468,7 @@ def main():
     mode_handlers = {
         'check': run_check,
         'train': run_train,
+        'pretrain': run_pretrain,
         'gui': run_gui,
         'web': run_web,
         'calibrate': run_calibrate,
@@ -425,7 +478,10 @@ def main():
     handler = mode_handlers.get(mode)
     if handler:
         try:
-            handler()
+            if mode == 'pretrain':
+                handler(args)
+            else:
+                handler()
         except KeyboardInterrupt:
             print("\n\n用户中断。")
         except Exception as e:
