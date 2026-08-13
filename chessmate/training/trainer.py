@@ -88,6 +88,19 @@ class Trainer:
             f"模型参数量: {sum(p.numel() for p in self.model.parameters()):,}"
         )
 
+        # 如果存在预训练模型（best_model.pth），加载其权重作为训练起点
+        best_path = os.path.join(config.model_dir, config.best_model_name)
+        if os.path.exists(best_path):
+            try:
+                checkpoint = torch.load(best_path, map_location="cpu", weights_only=False)
+                if "model_state_dict" in checkpoint:
+                    self.model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+                    self.logger.info(
+                        f"已加载预训练模型权重: {best_path}"
+                    )
+            except Exception as e:
+                self.logger.warning(f"加载预训练模型失败: {e}")
+
         # 经验回放缓冲区
         self.replay_buffer = ReplayBuffer(
             capacity=config.replay_buffer_capacity,
