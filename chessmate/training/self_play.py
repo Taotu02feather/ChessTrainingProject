@@ -111,6 +111,7 @@ class SelfPlay:
 
         move_count = 0
         max_moves = self.config.max_moves_per_game
+        root_value = 0.0  # 初始化估值，用于步数截断时的胜负裁定
 
         # 温度切换步数（前 N 步用高温探索，之后用低温贪婪）
         temperature_cutoff = 40  # 前 40 步使用温度采样，增加中局多样性
@@ -190,9 +191,21 @@ class SelfPlay:
             if self.logger:
                 self.logger.debug(f"和棋（逼和/子力不足）, 步数={move_count}")
         elif move_count >= max_moves:
-            result = "1/2-1/2"
+            # 用神经网络估值裁定胜负，而非一律判和
+            # root_value 是"最后走子方"的视角估值
+            # board.turn 现在是"下一方"（即最后走子方的对手）
+            if root_value > 0.3:
+                # 最后走子方优势
+                result = "1-0" if board.turn == chess.BLACK else "0-1"
+            elif root_value < -0.3:
+                # 最后走子方劣势
+                result = "0-1" if board.turn == chess.BLACK else "1-0"
+            else:
+                result = "1/2-1/2"
             if self.logger:
-                self.logger.debug(f"达到最大步数限制={max_moves}，视为和棋")
+                self.logger.debug(
+                    f"达到最大步数限制={max_moves}，估值裁定={result}（root_value={root_value:.3f}）"
+                )
 
         # 更新统计
         self.total_games += 1
