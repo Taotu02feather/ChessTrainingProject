@@ -48,6 +48,17 @@ class Pretrainer:
             f"模型参数量: {sum(p.numel() for p in self.model.parameters()):,}"
         )
 
+        # 如果存在现有模型（best_model.pth），加载其权重作为训练起点
+        best_path = os.path.join(config.model_dir, config.best_model_name)
+        if os.path.exists(best_path):
+            try:
+                checkpoint = torch.load(best_path, map_location="cpu", weights_only=False)
+                if "model_state_dict" in checkpoint:
+                    self.model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+                    self.logger.info(f"已加载现有模型权重: {best_path}")
+            except Exception as e:
+                self.logger.warning(f"加载现有模型失败: {e}")
+
         self.optimizer = optim.AdamW(
             self.model.parameters(),
             lr=config.learning_rate,
