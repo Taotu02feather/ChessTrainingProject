@@ -86,23 +86,31 @@ class Pretrainer:
                 self.encoder.clear_history()
                 self.encoder.push_history(board)
 
-                for node in game.mainline():
-                    move = node.move
-                    if move is None:
-                        break
+                try:
+                    for node in game.mainline():
+                        move = node.move
+                        if move is None:
+                            break
 
-                    encoded = self.encoder.encode(board)
-                    policy_idx = move_to_index(move)
+                        # 验证走法合法性，非法则跳过该局
+                        if move not in board.legal_moves:
+                            break
 
-                    if board.turn == chess.WHITE:
-                        value = game_value
-                    else:
-                        value = -game_value
+                        encoded = self.encoder.encode(board)
+                        policy_idx = move_to_index(move)
 
-                    yield encoded, policy_idx, value
+                        if board.turn == chess.WHITE:
+                            value = game_value
+                        else:
+                            value = -game_value
 
-                    board.push(move)
-                    self.encoder.push_history(board)
+                        yield encoded, policy_idx, value
+
+                        board.push(move)
+                        self.encoder.push_history(board)
+                except (ValueError, AssertionError):
+                    # 遇到无法解析的走法，跳过该局
+                    pass
 
         self.logger.info(f"已处理 {game_count} 局棋谱")
 
